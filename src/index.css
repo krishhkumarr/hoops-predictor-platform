@@ -71,8 +71,28 @@
 }
 
 /* Custom height classes for bracket spacing */
+.h-14 {
+  height: 3.5rem;
+}
+
+.h-28 {
+  height: 7rem;
+}
+
+.h-56 {
+  height: 14rem;
+}
+
+.h-112 {
+  height: 28rem;
+}
+
 .h-128 {
   height: 32rem;
+}
+
+.h-224 {
+  height: 56rem;
 }
 
 .h-256 {

@@ -56,24 +56,27 @@ export const generateInitialBracket = (teams: Team[]): BracketMatchup[] => {
   // First round - 32 matchups (64 teams)
   Object.keys(teamsByRegion).forEach(region => {
     const regionTeams = teamsByRegion[region];
+    const expectedMatchups = 8; // 8 matchups per region in first round
     
     // Create first round matchups based on traditional seeding (1 vs 16, 2 vs 15, etc.)
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < expectedMatchups; i++) {
       const position = i + 1;
-      const teamA = regionTeams.find(team => team.seed === position);
-      const teamB = regionTeams.find(team => team.seed === 17 - position);
+      const seedA = position;
+      const seedB = 17 - position;
       
-      if (teamA && teamB) {
-        matchups.push({
-          id: `${matchupId}`,
-          teamA,
-          teamB,
-          round: 1,
-          regionId: region,
-          position: i + 1
-        });
-        matchupId++;
-      }
+      const teamA = regionTeams.find(team => team.seed === seedA);
+      const teamB = regionTeams.find(team => team.seed === seedB);
+      
+      // Create the matchup even if one or both teams are missing
+      matchups.push({
+        id: `${matchupId}`,
+        teamA,
+        teamB,
+        round: 1,
+        regionId: region,
+        position: i + 1
+      });
+      matchupId++;
     }
   });
   
@@ -83,129 +86,152 @@ export const generateInitialBracket = (teams: Team[]): BracketMatchup[] => {
     return [];
   }
   
+  // Get matchups per region (should be 8 per region in first round for a total of 32)
+  const firstRoundCount = matchups.filter(m => m.round === 1).length;
+  const regionsCount = Object.keys(teamsByRegion).length;
+  const matchupsPerRegion = Math.floor(firstRoundCount / regionsCount);
+  
   // Second round - 16 matchups
-  for (let i = 0; i < Math.min(16, matchups.length); i += 2) {
-    const currentMatchup = matchups[i];
-    const nextMatchup = i + 1 < matchups.length ? matchups[i + 1] : null;
+  // Process each region separately
+  Object.keys(teamsByRegion).forEach(region => {
+    const regionMatchups = matchups
+      .filter(m => m.round === 1 && m.regionId === region)
+      .sort((a, b) => a.position - b.position);
     
-    if (!currentMatchup || !nextMatchup) {
-      console.warn('Missing matchups for round 2 generation', i);
-      continue;
+    // Create second round matchups for this region
+    for (let i = 0; i < regionMatchups.length; i += 2) {
+      if (i + 1 >= regionMatchups.length) {
+        console.warn(`Odd number of matchups for round 2 in region ${region}`);
+        break;
+      }
+      
+      const currentMatchup = regionMatchups[i];
+      const nextMatchup = regionMatchups[i + 1];
+      
+      // Create the second round matchup
+      matchups.push({
+        id: `${matchupId}`,
+        round: 2,
+        regionId: region,
+        position: Math.floor(i / 2) + 1
+      });
+      
+      // Set nextMatchupId for first round matchups
+      currentMatchup.nextMatchupId = `${matchupId}`;
+      nextMatchup.nextMatchupId = `${matchupId}`;
+      
+      matchupId++;
+    }
+  });
+  
+  // Sweet 16 - 8 matchups (2 per region)
+  Object.keys(teamsByRegion).forEach(region => {
+    const regionMatchups = matchups
+      .filter(m => m.round === 2 && m.regionId === region)
+      .sort((a, b) => a.position - b.position);
+    
+    for (let i = 0; i < regionMatchups.length; i += 2) {
+      if (i + 1 >= regionMatchups.length) {
+        console.warn(`Odd number of matchups for round 3 in region ${region}`);
+        break;
+      }
+      
+      const currentMatchup = regionMatchups[i];
+      const nextMatchup = regionMatchups[i + 1];
+      
+      // Create the Sweet 16 matchup
+      matchups.push({
+        id: `${matchupId}`,
+        round: 3,
+        regionId: region,
+        position: Math.floor(i / 2) + 1
+      });
+      
+      // Set nextMatchupId for second round matchups
+      currentMatchup.nextMatchupId = `${matchupId}`;
+      nextMatchup.nextMatchupId = `${matchupId}`;
+      
+      matchupId++;
+    }
+  });
+  
+  // Elite 8 - 4 matchups (1 per region)
+  Object.keys(teamsByRegion).forEach(region => {
+    const regionMatchups = matchups
+      .filter(m => m.round === 3 && m.regionId === region)
+      .sort((a, b) => a.position - b.position);
+    
+    if (regionMatchups.length < 2) {
+      console.warn(`Not enough Sweet 16 matchups for Elite 8 in region ${region}`);
+      return;
     }
     
-    matchups.push({
-      id: `${matchupId}`,
-      round: 2,
-      regionId: currentMatchup.regionId,
-      position: Math.floor(i / 2) + 1
-    });
+    const currentMatchup = regionMatchups[0];
+    const nextMatchup = regionMatchups[1];
     
-    // Set nextMatchupId for first round matchups
-    matchups[i].nextMatchupId = `${matchupId}`;
-    matchups[i + 1].nextMatchupId = `${matchupId}`;
-    
-    matchupId++;
-  }
-  
-  const round2Matchups = matchups.filter(m => m.round === 2);
-  
-  // Sweet 16 - 8 matchups
-  for (let i = 0; i < Math.min(8, round2Matchups.length); i += 2) {
-    const idx = i + matchups.filter(m => m.round === 1).length;
-    const currentMatchup = matchups[idx];
-    const nextMatchup = idx + 1 < matchups.length ? matchups[idx + 1] : null;
-    
-    if (!currentMatchup || !nextMatchup) {
-      console.warn('Missing matchups for round 3 generation', i, idx);
-      continue;
-    }
-    
-    matchups.push({
-      id: `${matchupId}`,
-      round: 3,
-      regionId: currentMatchup.regionId,
-      position: Math.floor(i / 2) + 1
-    });
-    
-    // Set nextMatchupId for second round matchups
-    matchups[idx].nextMatchupId = `${matchupId}`;
-    matchups[idx + 1].nextMatchupId = `${matchupId}`;
-    
-    matchupId++;
-  }
-  
-  const round3Matchups = matchups.filter(m => m.round === 3);
-  
-  // Elite 8 - 4 matchups
-  for (let i = 0; i < Math.min(4, round3Matchups.length); i += 2) {
-    const idx = i + matchups.filter(m => m.round < 3).length;
-    const currentMatchup = matchups[idx];
-    const nextMatchup = idx + 1 < matchups.length ? matchups[idx + 1] : null;
-    
-    if (!currentMatchup || !nextMatchup) {
-      console.warn('Missing matchups for round 4 generation', i, idx);
-      continue;
-    }
-    
+    // Create the Elite 8 matchup
     matchups.push({
       id: `${matchupId}`,
       round: 4,
-      regionId: currentMatchup.regionId,
-      position: Math.floor(i / 2) + 1
-    });
-    
-    // Set nextMatchupId for Sweet 16 matchups
-    matchups[idx].nextMatchupId = `${matchupId}`;
-    matchups[idx + 1].nextMatchupId = `${matchupId}`;
-    
-    matchupId++;
-  }
-  
-  const round4Matchups = matchups.filter(m => m.round === 4);
-  
-  // Final Four - 2 matchups
-  if (round4Matchups.length >= 2) {
-    const firstMatchupIdx = matchups.indexOf(round4Matchups[0]);
-    const secondMatchupIdx = matchups.indexOf(round4Matchups[1]);
-    
-    matchups.push({
-      id: `${matchupId}`,
-      round: 5,
+      regionId: region,
       position: 1
     });
     
-    if (firstMatchupIdx >= 0 && secondMatchupIdx >= 0) {
-      matchups[firstMatchupIdx].nextMatchupId = `${matchupId}`;
-      matchups[secondMatchupIdx].nextMatchupId = `${matchupId}`;
-    }
+    // Set nextMatchupId for Sweet 16 matchups
+    currentMatchup.nextMatchupId = `${matchupId}`;
+    nextMatchup.nextMatchupId = `${matchupId}`;
     
     matchupId++;
-  }
+  });
   
-  if (round4Matchups.length >= 4) {
-    const thirdMatchupIdx = matchups.indexOf(round4Matchups[2]);
-    const fourthMatchupIdx = matchups.indexOf(round4Matchups[3]);
+  // Final Four - 2 matchups
+  const eliteEightMatchups = matchups.filter(m => m.round === 4);
+  const regions = Object.keys(teamsByRegion);
+  
+  // South vs East
+  if (regions.includes('South') && regions.includes('East')) {
+    const southMatchup = eliteEightMatchups.find(m => m.regionId === 'South');
+    const eastMatchup = eliteEightMatchups.find(m => m.regionId === 'East');
     
-    matchups.push({
-      id: `${matchupId}`,
-      round: 5,
-      position: 2
-    });
-    
-    if (thirdMatchupIdx >= 0 && fourthMatchupIdx >= 0) {
-      matchups[thirdMatchupIdx].nextMatchupId = `${matchupId}`;
-      matchups[fourthMatchupIdx].nextMatchupId = `${matchupId}`;
+    if (southMatchup && eastMatchup) {
+      matchups.push({
+        id: `${matchupId}`,
+        round: 5,
+        position: 1
+      });
+      
+      southMatchup.nextMatchupId = `${matchupId}`;
+      eastMatchup.nextMatchupId = `${matchupId}`;
+      
+      matchupId++;
     }
-    
-    matchupId++;
   }
   
-  const round5Matchups = matchups.filter(m => m.round === 5);
+  // West vs Midwest
+  if (regions.includes('West') && regions.includes('Midwest')) {
+    const westMatchup = eliteEightMatchups.find(m => m.regionId === 'West');
+    const midwestMatchup = eliteEightMatchups.find(m => m.regionId === 'Midwest');
+    
+    if (westMatchup && midwestMatchup) {
+      matchups.push({
+        id: `${matchupId}`,
+        round: 5,
+        position: 2
+      });
+      
+      westMatchup.nextMatchupId = `${matchupId}`;
+      midwestMatchup.nextMatchupId = `${matchupId}`;
+      
+      matchupId++;
+    }
+  }
   
   // Championship - 1 matchup
-  if (round5Matchups.length >= 2) {
-    const firstFinalFourIdx = matchups.indexOf(round5Matchups[0]);
-    const secondFinalFourIdx = matchups.indexOf(round5Matchups[1]);
+  const finalFourMatchups = matchups.filter(m => m.round === 5);
+  
+  if (finalFourMatchups.length >= 2) {
+    const firstFinalFourMatchup = finalFourMatchups[0];
+    const secondFinalFourMatchup = finalFourMatchups[1];
     
     matchups.push({
       id: `${matchupId}`,
@@ -213,10 +239,8 @@ export const generateInitialBracket = (teams: Team[]): BracketMatchup[] => {
       position: 1
     });
     
-    if (firstFinalFourIdx >= 0 && secondFinalFourIdx >= 0) {
-      matchups[firstFinalFourIdx].nextMatchupId = `${matchupId}`;
-      matchups[secondFinalFourIdx].nextMatchupId = `${matchupId}`;
-    }
+    firstFinalFourMatchup.nextMatchupId = `${matchupId}`;
+    secondFinalFourMatchup.nextMatchupId = `${matchupId}`;
   }
   
   return matchups;
