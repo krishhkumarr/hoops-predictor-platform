@@ -2,6 +2,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Stat } from '../utils/teamData';
+import { Slider } from './ui/slider';
 
 interface StatAdjusterProps {
   stats: Stat[];
@@ -22,7 +23,7 @@ const StatAdjuster: React.FC<StatAdjusterProps> = ({
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3 }}
       >
-        Adjust Stat Importance
+        Adjust Tournament Factors
       </motion.h3>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -44,20 +45,18 @@ const StatAdjuster: React.FC<StatAdjusterProps> = ({
               </div>
             </div>
             
-            <input
-              type="range"
-              min="0"
-              max="2"
-              step="0.1"
-              value={statWeights[stat.id] || stat.defaultWeight}
-              onChange={(e) => onWeightChange(stat.id, parseFloat(e.target.value))}
-              className="stat-slider"
+            <Slider
+              value={[statWeights[stat.id] || stat.defaultWeight]}
+              min={0}
+              max={2}
+              step={0.1}
+              onValueChange={(values) => onWeightChange(stat.id, values[0])}
+              className="my-2"
             />
             
             <div className="flex justify-between text-xs text-muted-foreground mt-1">
-              <span>Low</span>
-              <span>Medium</span>
-              <span>High</span>
+              <span>Less Important</span>
+              <span>More Important</span>
             </div>
             
             {/* Background indicator */}

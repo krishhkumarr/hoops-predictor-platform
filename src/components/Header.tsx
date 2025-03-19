@@ -17,7 +17,7 @@ const Header: React.FC = () => {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          Basketball Prediction Platform
+          Tournament Bracket Predictor
         </motion.div>
         <motion.h1 
           className="text-3xl md:text-4xl font-light tracking-tight text-center mt-1"
@@ -25,7 +25,7 @@ const Header: React.FC = () => {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.3 }}
         >
-          March Madness Predictor
+          March Madness Champion Forecast
         </motion.h1>
         <motion.div 
           className="h-px w-20 bg-primary/30 mt-3"
