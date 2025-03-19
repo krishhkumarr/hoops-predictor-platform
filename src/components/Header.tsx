@@ -25,7 +25,7 @@ const Header: React.FC = () => {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.3 }}
         >
-          March Madness Champion Forecast
+          March Madness Bracket Simulator
         </motion.h1>
         <motion.div 
           className="h-px w-20 bg-primary/30 mt-3"
