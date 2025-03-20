@@ -1,5 +1,5 @@
-
-import { Team, Stat, stats } from './teamData';
+import { Team, Stat } from './types';
+import { stats } from './teamData2025';
 import { BracketMatchup } from './bracketData';
 
 interface StatWeight {
@@ -15,146 +15,144 @@ interface TeamPrediction {
   weaknesses: string[];
 }
 
-export const calculateTeamScore = (
-  team: Team,
-  statWeights: { [key: string]: number }
-): number => {
-  let score = 0;
-  
-  Object.entries(statWeights).forEach(([statId, weight]) => {
-    const statDefinition = stats.find(s => s.id === statId);
-    if (!statDefinition) return;
-    
-    const value = team.stats[statId];
-    const min = statDefinition.min;
-    const max = statDefinition.max;
-    
-    // Normalize the stat value between 0 and 1 based on min/max ranges
-    let normalizedValue = (value - min) / (max - min);
-    
-    // For stats where lower is better (like defensive efficiency or turnovers), invert the value
-    if (statId === 'defensiveEfficiency' || statId === 'turnoverRate') {
-      normalizedValue = 1 - normalizedValue;
+// Calculate a team's score based on weighted stats
+const calculateTeamScore = (team: Team, weights: StatWeight[]): number => {
+  let totalScore = 0;
+  let totalWeight = 0;
+
+  weights.forEach(({ statId, weight }) => {
+    const stat = stats.find(s => s.id === statId);
+    if (stat && team.stats[statId] !== undefined) {
+      // Normalize the stat value between 0 and 1
+      const normalizedValue = (team.stats[statId] - stat.min) / (stat.max - stat.min);
+      
+      // Invert values where lower is better (e.g., turnovers)
+      const adjustedValue = statId.toLowerCase().includes('turnover') ? 1 - normalizedValue : normalizedValue;
+      
+      totalScore += adjustedValue * weight;
+      totalWeight += weight;
     }
-    
-    // Add the weighted contribution to the total score
-    score += normalizedValue * weight;
   });
-  
-  return score;
+
+  // Return normalized score between 0 and 1
+  return totalWeight > 0 ? totalScore / totalWeight : 0;
 };
 
-export const predictMatchupWinner = (
-  teamA: Team,
-  teamB: Team,
-  statWeights: { [key: string]: number }
-): Team => {
-  const scoreA = calculateTeamScore(teamA, statWeights);
-  const scoreB = calculateTeamScore(teamB, statWeights);
+// Predict winner between two teams
+const predictMatchupWinner = (teamA: Team, teamB: Team, weights: StatWeight[]): Team => {
+  const scoreA = calculateTeamScore(teamA, weights);
+  const scoreB = calculateTeamScore(teamB, weights);
   
-  return scoreA >= scoreB ? teamA : teamB;
+  // Add minimal randomness based on the difference in scores
+  const scoreDiff = Math.abs(scoreA - scoreB);
+  const randomFactor = Math.random() * 0.05; // Reduced from 0.2 to 0.05 (5% random factor)
+  
+  // If scores are very close, still allow some randomness but less likely
+  if (scoreDiff < 0.05) {
+    return Math.random() < 0.5 ? teamA : teamB;
+  }
+  
+  // If scores are far apart, follow prediction more strictly
+  if (scoreDiff > 0.2) {
+    return scoreA > scoreB ? teamA : teamB;
+  }
+  
+  // For medium differences, use weighted random with less randomness
+  const probability = (scoreA + randomFactor) / (scoreA + scoreB + randomFactor * 2);
+  return Math.random() < probability ? teamA : teamB;
 };
 
-export const simulateBracket = (
-  initialBracket: BracketMatchup[],
-  statWeights: { [key: string]: number }
-): BracketMatchup[] => {
-  // Create a deep copy of the initial bracket
-  const simulatedBracket: BracketMatchup[] = JSON.parse(JSON.stringify(initialBracket));
+// Simulate the bracket
+export const simulateBracket = (bracket: BracketMatchup[], weights: StatWeight[]): BracketMatchup[] => {
+  const updatedBracket = [...bracket];
   
-  // Process rounds one by one
+  // Process each round
   for (let round = 1; round <= 6; round++) {
-    // Get all matchups for the current round
-    const currentRoundMatchups = simulatedBracket.filter(matchup => matchup.round === round);
+    const roundMatchups = updatedBracket.filter(m => m.round === round);
     
-    // Simulate each matchup in the current round
-    currentRoundMatchups.forEach(matchup => {
-      // Skip if we don't have both teams
-      if (!matchup.teamA || !matchup.teamB) {
-        return;
-      }
-      
-      // Predict the winner
-      const winner = predictMatchupWinner(matchup.teamA, matchup.teamB, statWeights);
-      matchup.winner = winner;
-      
-      // Advance the winner to the next round if there is a next matchup
-      if (matchup.nextMatchupId) {
-        const nextMatchup = simulatedBracket.find(m => m.id === matchup.nextMatchupId);
-        if (nextMatchup) {
-          // If teamA is not set, use it, otherwise use teamB
-          if (!nextMatchup.teamA) {
-            nextMatchup.teamA = winner;
-          } else {
-            nextMatchup.teamB = winner;
+    roundMatchups.forEach(matchup => {
+      if (matchup.teamA && matchup.teamB) {
+        // Predict winner
+        const winner = predictMatchupWinner(matchup.teamA, matchup.teamB, weights);
+        matchup.winner = winner;
+        
+        // Update next round matchup if exists
+        if (round < 6 && matchup.nextMatchupId) {
+          const nextRoundMatchup = updatedBracket.find(m => m.id === matchup.nextMatchupId);
+          
+          if (nextRoundMatchup) {
+            // For Final Four and Championship, we need to handle both teams
+            if (round >= 4) {
+              // Find the other matchup that feeds into this Final Four/Championship matchup
+              const otherMatchup = updatedBracket.find(m => 
+                m.round === round && 
+                m.nextMatchupId === matchup.nextMatchupId && 
+                m.id !== matchup.id
+              );
+              
+              if (otherMatchup && otherMatchup.winner) {
+                // Set both teams for the next round matchup
+                nextRoundMatchup.teamA = matchup.winner;
+                nextRoundMatchup.teamB = otherMatchup.winner;
+              } else {
+                // If we don't have the other winner yet, just set this winner
+                if (matchup.position % 2 === 0) {
+                  nextRoundMatchup.teamA = winner;
+                } else {
+                  nextRoundMatchup.teamB = winner;
+                }
+              }
+            } else {
+              // For earlier rounds, just set the winner in the appropriate slot
+              if (matchup.position % 2 === 0) {
+                nextRoundMatchup.teamA = winner;
+              } else {
+                nextRoundMatchup.teamB = winner;
+              }
+            }
           }
         }
       }
     });
   }
   
-  return simulatedBracket;
+  return updatedBracket;
 };
 
-export const getTeamStrengthsAndWeaknesses = (team: Team): { strengths: string[], weaknesses: string[] } => {
-  const statPerformances = Object.entries(team.stats).map(([statId, value]) => {
-    const statDef = stats.find(s => s.id === statId);
-    if (!statDef) return { statId, normalizedValue: 0, statName: '' };
-    
-    let normalizedValue = (value - statDef.min) / (statDef.max - statDef.min);
-    if (statId === 'defensiveEfficiency' || statId === 'turnoverRate') {
-      normalizedValue = 1 - normalizedValue;
+// Get team strengths and weaknesses
+const getTeamStrengthsAndWeaknesses = (team: Team, weights: StatWeight[]): { strengths: string[], weaknesses: string[] } => {
+  const strengths: string[] = [];
+  const weaknesses: string[] = [];
+  
+  weights.forEach(({ statId, weight }) => {
+    const stat = stats.find(s => s.id === statId);
+    if (stat && team.stats[statId] !== undefined) {
+      const normalizedValue = (team.stats[statId] - stat.min) / (stat.max - stat.min);
+      const adjustedValue = statId.toLowerCase().includes('turnover') ? 1 - normalizedValue : normalizedValue;
+      
+      if (adjustedValue > 0.7) {
+        strengths.push(stat.name);
+      } else if (adjustedValue < 0.3) {
+        weaknesses.push(stat.name);
+      }
     }
-    
-    return {
-      statId,
-      statName: statDef.name,
-      normalizedValue
-    };
   });
-  
-  // Sort by normalized values to find strengths and weaknesses
-  const sortedStats = [...statPerformances].sort((a, b) => b.normalizedValue - a.normalizedValue);
-  
-  const strengths = sortedStats.slice(0, 3).map(s => s.statName);
-  const weaknesses = sortedStats.slice(-3).map(s => s.statName);
   
   return { strengths, weaknesses };
 };
 
-export const calculatePredictions = (
-  selectedTeams: Team[],
-  statWeights: StatWeight[]
-): TeamPrediction[] => {
-  // Convert statWeights array to object for easier access
-  const statWeightsObj: { [key: string]: number } = {};
-  statWeights.forEach(({ statId, weight }) => {
-    statWeightsObj[statId] = weight;
-  });
-  
-  // Calculate raw scores based on weighted stats
-  const rawScores = selectedTeams.map(team => {
-    const score = calculateTeamScore(team, statWeightsObj);
-    return { team, score };
-  });
-  
-  // Calculate the total score to find probabilities
-  const totalScore = rawScores.reduce((sum, item) => sum + item.score, 0);
-  
-  // Calculate win probabilities and identify strengths/weaknesses
-  return rawScores.map(({ team, score }) => {
-    // Calculate win probability
-    const winProbability = totalScore > 0 ? score / totalScore : 1 / selectedTeams.length;
-    
-    // Get strengths and weaknesses
-    const { strengths, weaknesses } = getTeamStrengthsAndWeaknesses(team);
+// Calculate predictions for selected teams
+export const calculatePredictions = (teams: Team[], weights: StatWeight[]): TeamPrediction[] => {
+  return teams.map(team => {
+    const score = calculateTeamScore(team, weights);
+    const { strengths, weaknesses } = getTeamStrengthsAndWeaknesses(team, weights);
     
     return {
       team,
       score,
-      winProbability,
+      winProbability: score, // Use normalized score as win probability
       strengths,
-      weaknesses,
+      weaknesses
     };
-  }).sort((a, b) => b.score - a.score); // Sort by score in descending order
+  }).sort((a, b) => b.score - a.score);
 };

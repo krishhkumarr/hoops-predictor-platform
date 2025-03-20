@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Team } from '../utils/teamData';
+import { Team } from '../utils/types';
 import { Trophy, TrendingUp, TrendingDown, ChevronRight } from 'lucide-react';
 
 interface TeamPrediction {

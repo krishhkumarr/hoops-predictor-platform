@@ -1,15 +1,14 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Header from '../components/Header';
 import StatAdjuster from '../components/StatAdjuster';
 import BracketView from '../components/BracketView';
-import { teams, stats } from '../utils/teamData';
+import { teams, stats } from '../utils/teamData2025';
 import { simulateBracket } from '../utils/predictionAlgorithm';
 import { generateInitialBracket, BracketMatchup } from '../utils/bracketData';
 
 const Index = () => {
-  const [statWeights, setStatWeights] = useState({});
+  const [statWeights, setStatWeights] = useState<{ [key: string]: number }>({});
   const [initialBracket, setInitialBracket] = useState<BracketMatchup[]>([]);
   const [simulatedBracket, setSimulatedBracket] = useState<BracketMatchup[]>([]);
   const [isSimulating, setIsSimulating] = useState(false);
@@ -32,14 +31,20 @@ const Index = () => {
   useEffect(() => {
     if (initialBracket.length > 0 && Object.keys(statWeights).length > 0) {
       if (isSimulating) {
-        const simulatedResults = simulateBracket(initialBracket, statWeights);
+        // Convert statWeights object to array format expected by simulateBracket
+        const weightsArray = Object.entries(statWeights).map(([statId, weight]) => ({
+          statId,
+          weight
+        }));
+        
+        const simulatedResults = simulateBracket(initialBracket, weightsArray);
         setSimulatedBracket(simulatedResults);
         setIsSimulating(false);
       }
     }
   }, [initialBracket, statWeights, isSimulating]);
 
-  const handleWeightChange = (statId, weight) => {
+  const handleWeightChange = (statId: string, weight: number) => {
     setStatWeights(prev => ({
       ...prev,
       [statId]: weight,

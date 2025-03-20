@@ -1,7 +1,7 @@
-
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Team } from '../utils/teamData';
+import { Team } from '../utils/types';
+import { teams } from '../utils/teamData2025';
 import { Check } from 'lucide-react';
 
 interface TeamSelectorProps {

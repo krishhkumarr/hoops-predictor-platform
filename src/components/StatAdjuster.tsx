@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Stat } from '../utils/teamData';
+import { Stat } from '../utils/types';
 import { Slider } from './ui/slider';
 
 interface StatAdjusterProps {
